@@ -13,51 +13,78 @@ let input: Board = .boardFromStdin()
 // 序盤は相手の手を減らすように取り、終盤は多く取る（角を優先して取り、角の周囲はできるだけ取らない）
 let isFinalStage = input.count(of: .dark) + input.count(of: .light) >= 54
 
-var bestMove: (x: Int, y: Int)?
-var bestScore: Int = Int.min
+// 位置における評価値
+let priority = [
+    [ 20,-10, 15, 15, 15, 15,-10, 20],
+    [-10,-20, 10,  1,  1, 10,-20,-10],
+    [ 15, 10, 10,  1,  1, 10, 10, 15],
+    [ 15,  1,  1,  1,  1,  1,  1, 15],
+    [ 15,  1,  1,  1,  1,  1,  1, 15],
+    [ 15, 10, 10,  1,  1, 10, 10, 15],
+    [-10,-20, 10,  1,  1, 10,-20,-10],
+    [ 20,-10, 15, 15, 15, 15,-10, 20]
+]
 
-// 候補手を全て試す
-for move in input.validMoves(for: .dark) {
-    // 試し打ち
-    var board = input
-    try! board.place(.dark, atX: move.x, y: move.y)
-
-    // 盤面評価
-    let score = eval(move: move, input: board)
-        
-    // 評価値更新
-    if score > bestScore {
-        bestMove = move
-        bestScore = score
-    }
+struct Move {
+    let x: Int
+    let y: Int
 }
 
-func eval(move: (x: Int, y: Int), input: Board) -> Int {
-    var score: Int
+func eval(move: Move, board: Board) -> Int {
+    return priority[move.x][move.y]
+}
 
-    if isFinalStage {
-        score = input.count(of: .dark)
-    } else {
-        score = -input.validMoves(for: .light).count
+
+func max(move: Move, input: Board, limit: Int) -> Int {
+    if limit == 0 {
+        return eval(move: move, board: input)
     }
     
-    
-    switch move {
-    case (x: 0, y: 0), (x: 7, y: 0), (x: 0, y: 7), (x: 7, y: 7): // 角
-        score += 20
-    case (x: 3, y: 0), (x: 4, y: 0), (x: 0, y: 3), (x: 3, y: 7), (x: 4, y: 7), (x: 0, y: 4), (x: 7, y: 3), (x: 7, y: 4): // 縁
-        score += 15
-    case (x: 1, y: 1), (x: 6, y: 1), (x: 1, y: 6), (x: 6, y: 6): // 角の斜め隣
-        score -= 20
-    case (x: 0, y: 1), (x: 1, y: 0), (x: 7, y: 1), (x: 6, y: 0), (x: 0, y: 6), (x: 1, y: 7), (x: 7, y: 6), (x: 6, y: 7): // 角の隣
-        score -= 10
-    case (x: 2, y: 0), (x: 2, y: 1), (x: 2, y: 2), (x: 0, y: 2), (x: 1, y: 2), (x: 5, y: 0), (x: 5, y: 1), (x: 5, y: 2), (x: 6, y: 2), (x: 7, y: 2), (x: 0, y: 5), (x: 1, y: 5), (x: 2, y: 5), (x: 2, y: 6), (x: 2, y: 7), (x: 5, y: 5), (x: 6, y: 5), (x: 7, y: 5), (x: 5, y: 6), (x: 5, y: 7): // 角の隣の隣
-        score += 10
-    default:
-        break
+    var score_max: Int = Int.min
+    for validMove in input.validMoves(for: .dark) {
+        var board = input
+        try! board.place(.dark, atX: validMove.x, y: validMove.y)
+        let score = min(move: Move(x: validMove.x, y: validMove.y), input: board, limit: limit - 1)
+        
+        if score > score_max {
+            score_max = score
+        }
     }
     
-    return score
+    return score_max
+}
+
+func min(move: Move, input: Board, limit: Int) -> Int {
+    if limit == 0 {
+        return eval(move: move, board: input)
+    }
+    
+    var score_min: Int = Int.max
+    for validMove in input.validMoves(for: .light) {
+        var board = input
+        try! board.place(.light, atX: validMove.x, y: validMove.y)
+        let score = max(move: Move(x: validMove.x, y: validMove.y), input: board, limit: limit - 1)
+        
+        if score < score_min {
+            score_min = score
+        }
+    }
+    
+    return score_min
+}
+
+
+var bestMove: (x: Int, y: Int)?
+var eval_max = Int.min
+
+for validMove in input.validMoves(for: .dark) {
+    var board = input
+    try! board.place(.dark, atX: validMove.x, y: validMove.y)
+    let eval = min(move: Move(x: validMove.x, y: validMove.y), input: board, limit: 3)
+    if eval > eval_max {
+        eval_max = eval
+        bestMove = validMove
+    }
 }
 
 // 選んだ手を出力
